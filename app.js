@@ -38,7 +38,10 @@
       if (!saved) return [];
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter(isStoredExpense);
+      return parsed.filter(isStoredExpense).map((expense) => ({
+        ...expense,
+        category: normalizeCategory(expense.category),
+      }));
     } catch (_) {
       return [];
     }
@@ -73,6 +76,11 @@
     return currencyFormatter.format(value);
   }
 
+  function normalizeCategory(value) {
+    const compact = value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
+    return compact.replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase('en-US'));
+  }
+
   function showError(message) {
     errorBox.textContent = message;
     errorBox.hidden = false;
@@ -104,7 +112,7 @@
   function renderExpenses(selected) {
     expenseList.replaceChildren();
     if (selected.length === 0) {
-      expenseList.append(createEmptyState('No expenses for this month yet.'));
+      expenseList.append(createEmptyState('No expenses this month', 'Add your first expense above to start tracking this month.'));
       return;
     }
     selected.forEach((expense) => {
@@ -116,7 +124,7 @@
       category.textContent = expense.category;
       const metadata = document.createElement('span');
       metadata.className = 'expense-detail';
-      metadata.textContent = expense.description ? `${expense.date} · ${expense.description}` : expense.date;
+      metadata.textContent = expense.description ? `${expense.date} — ${expense.description}` : expense.date;
       details.append(category, metadata);
 
       const value = document.createElement('span');
@@ -136,7 +144,7 @@
   function renderCategories(byCategory) {
     categoryTotals.replaceChildren();
     if (byCategory.size === 0) {
-      categoryTotals.append(createEmptyState('No category totals yet.'));
+      categoryTotals.append(createEmptyState('No categories yet', 'Category totals will appear here once you add an expense.'));
       return;
     }
     [...byCategory.entries()]
@@ -153,10 +161,14 @@
       });
   }
 
-  function createEmptyState(message) {
-    const empty = document.createElement('p');
+  function createEmptyState(title, message) {
+    const empty = document.createElement('div');
     empty.className = 'empty-state';
-    empty.textContent = message;
+    const heading = document.createElement('strong');
+    heading.textContent = title;
+    const detail = document.createElement('span');
+    detail.textContent = message;
+    empty.append(heading, detail);
     return empty;
   }
 
@@ -179,13 +191,14 @@
     event.preventDefault();
     clearError();
     const amount = Number(amountInput.value);
-    const category = categoryInput.value.trim();
+    const category = normalizeCategory(categoryInput.value);
     const date = dateInput.value;
     const description = descriptionInput.value.trim();
 
-    if (!Number.isFinite(amount) || amount <= 0) return showError('Enter an amount greater than 0 KZT.');
-    if (!category) return showError('Enter an expense category.');
-    if (!isValidDate(date)) return showError('Choose a valid expense date.');
+    if (!amountInput.value.trim()) return showError('Enter an amount in KZT.');
+    if (!Number.isFinite(amount) || amount <= 0) return showError('Amount must be greater than 0 KZT.');
+    if (!category) return showError('Enter a category, such as Food or Transport.');
+    if (!isValidDate(date)) return showError('Choose a valid date for this expense.');
 
     const expense = { id: createId(), amount, category, date, description };
     expenses.push(expense);
